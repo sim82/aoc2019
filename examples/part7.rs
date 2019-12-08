@@ -1,6 +1,6 @@
 use aoc2019::intcode::*;
 use permutohedron::LexicalPermutation;
-
+use std::sync::mpsc::channel;
 fn main() {
     if true {
         if true {}
@@ -11,6 +11,8 @@ fn main() {
     assert_eq!(day5(), "0\n0\n0\n0\n0\n0\n0\n0\n0\n15426686\n11430197\n");
     assert_eq!(day7(), 366376);
     assert_eq!(day7_1(), 21596786);
+
+    day7_1_nt();
 }
 fn day2() {
     let stdin = std::io::stdin();
@@ -21,7 +23,7 @@ fn day2() {
         let mut output = stdout.lock();
         let mut io = Io::default(&mut input, &mut output);
         let mut context = Context::new(data);
-        (&mut context, &mut io).run();
+        (&mut context, &mut io as &mut dyn Io2).run();
         // println!("data[0] = {}", context.data[0]);
         assert_eq!(context.data[0], 3716250);
     }
@@ -34,7 +36,7 @@ fn day2() {
             let mut context = Context::new(data);
             context.data[1] = i;
             context.data[2] = j;
-            (&mut context, &mut io).run();
+            (&mut context, &mut io as &mut dyn Io2).run();
             if context.data[0] == 19690720 {
                 //println!("answer 2: {}", 100 * i + j);
                 assert_eq!(100 * i + j, 6472);
@@ -51,7 +53,7 @@ fn day5() -> String {
         // let mut output = stdout.lock();
         let mut io = Io::default(&mut input, &mut output);
         let mut context = Context::new(code5());
-        (&mut context, &mut io).run();
+        (&mut context, &mut io as &mut dyn Io2).run();
         // println!("data: {:?}", data);
     }
     String::from_utf8(output).unwrap()
@@ -68,7 +70,7 @@ fn day7() -> i32 {
             let mut output = Vec::<u8>::new();
             let mut io = Io::default(&mut input, &mut output);
             let mut context = Context::new(code7());
-            (&mut context, &mut io).run();
+            (&mut context, &mut io as &mut dyn Io2).run();
             next_input = String::from_utf8(output).unwrap();
         }
         let out_val = next_input.trim().parse::<i32>().unwrap();
@@ -110,7 +112,7 @@ fn day7_1() -> i32 {
                     // println!("stage {} input: {}", i, ios.0);
                     let mut input = ios.0.as_bytes();
                     let mut io = Io::default(&mut input, &mut ios.1);
-                    ios.3 = (&mut ios.2, &mut io).run();
+                    ios.3 = (&mut ios.2, &mut io as &mut dyn Io2).run();
                     ios.0 = String::from_utf8(input.into()).unwrap();
                     num_run += 1;
                     // println!(
@@ -144,6 +146,58 @@ fn day7_1() -> i32 {
     }
     // println!("max: {:?} {}", max_seq, max_out);
     max_out
+}
+
+fn day7_1_nt() {
+    let mut seq = [5, 6, 7, 8, 9];
+    // let mut seq = [9, 8, 7, 6, 5];
+    let mut max_out = 0;
+    let mut max_seq = [0; 5];
+    loop {
+        //    c0 -> p0 -> c1 -> p1 -> c2 -> p2 -> c3 -> p3 -> c4 - p4 -> c5 -> p5 -> c0
+        //  s    r     s     r
+        let channels: Vec<_> = seq
+            .iter()
+            .map(|phase| {
+                let (s, r) = channel::<i32>();
+                s.send(*phase).unwrap();
+                (s, r)
+            })
+            .collect();
+        channels[0].0.send(0).unwrap();
+        //    let get_io = { |num| (channels[num].1, channels[num + 1 % 5].0) };
+        let mut state = channels
+            .iter()
+            .map(|x| (Context::new(code71()).break_on_output(), false))
+            .collect::<Vec<_>>();
+        loop {
+            let mut num_run = 0;
+            for (i, ios) in &mut state.iter_mut().enumerate() {
+                if !ios.1 {
+                    let mut pipe = (&channels[(i + 1) % 5].0, &channels[i].1, i as i32);
+                    // println!("stage {} input: {}", i, ios.0);
+                    ios.1 = (&mut ios.0, &mut pipe as &mut dyn Io2).run();
+                    num_run += 1;
+                }
+            }
+            if num_run == 0 {
+                // println!("break: {}", next_input);
+                break;
+            }
+            // println!("feedback: {}", next_input);
+        }
+        let out_val = channels[0].1.recv().unwrap();
+        if out_val > max_out {
+            max_out = out_val;
+            max_seq = seq.clone();
+        }
+        // println!("{:?}: {}", seq, next_input);
+        if !seq.next_permutation() {
+            break;
+        }
+    }
+    // println!("max: {:?} {}", max_seq, max_out);
+    assert_eq!(max_out, 21596786);
 }
 fn code2() -> Vec<i32> {
     vec![

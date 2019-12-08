@@ -1,6 +1,7 @@
+use super::intcode::Io2;
 use super::intcode::*;
 use permutohedron::LexicalPermutation;
-
+use std::sync::mpsc::{channel, Receiver, Sender};
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -15,7 +16,7 @@ mod tests {
             let mut output = stdout.lock();
             let mut io = Io::default(&mut input, &mut output);
             let mut context = Context::new(data);
-            (&mut context, &mut io).run();
+            (&mut context, &mut io as &mut dyn Io2).run();
             // println!("data[0] = {}", context.data[0]);
             assert_eq!(context.data[0], 3716250);
         }
@@ -28,7 +29,7 @@ mod tests {
                 let mut context = Context::new(data);
                 context.data[1] = i;
                 context.data[2] = j;
-                (&mut context, &mut io).run();
+                (&mut context, &mut io as &mut dyn Io2).run();
                 if context.data[0] == 19690720 {
                     //println!("answer 2: {}", 100 * i + j);
                     assert_eq!(100 * i + j, 6472);
@@ -47,7 +48,7 @@ mod tests {
             // let mut output = stdout.lock();
             let mut io = Io::default(&mut input, &mut output);
             let mut context = Context::new(code5());
-            (&mut context, &mut io).run();
+            (&mut context, &mut io as &mut dyn Io2).run();
             // println!("data: {:?}", data);
         }
         assert_eq!(
@@ -69,7 +70,7 @@ mod tests {
                 let mut output = Vec::<u8>::new();
                 let mut io = Io::default(&mut input, &mut output);
                 let mut context = Context::new(code7());
-                (&mut context, &mut io).run();
+                (&mut context, &mut io as &mut dyn Io2).run();
                 next_input = String::from_utf8(output).unwrap();
             }
             let out_val = next_input.trim().parse::<i32>().unwrap();
@@ -85,68 +86,58 @@ mod tests {
         // println!("max: {:?} {}", max_seq, max_out);
         assert_eq!(max_out, 366376);
     }
-    #[test]
 
-    fn day7_1() {
+    #[test]
+    fn day7_1_nt() {
+        assert_eq!(day7_1_pipe(code71_test1()), (139629729, [9, 8, 7, 6, 5]));
+        assert_eq!(day7_1_pipe(code71_test2()), (18216, [9, 7, 8, 5, 6]));
+        assert_eq!(day7_1_pipe(code7()).0, 21596786);
+    }
+    fn day7_1_pipe(code: Vec<i32>) -> (i32, [i32; 5]) {
         let mut seq = [5, 6, 7, 8, 9];
         // let mut seq = [9, 8, 7, 6, 5];
         let mut max_out = 0;
         let mut max_seq = [0; 5];
         loop {
-            let mut next_input = "0\n".to_string();
-            let mut state = seq
+            //    c0 -> p0 -> c1 -> p1 -> c2 -> p2 -> c3 -> p3 -> c4 - p4 -> c5 -> p5 -> c0
+            //  s    r     s     r
+            let channels: Vec<_> = seq
                 .iter()
-                .map(|x| {
-                    (
-                        format!("{}\n", x).to_string(),
-                        Vec::<u8>::new(),
-                        Context::new(code71()).break_on_output(),
-                        false,
-                    )
+                .map(|phase| {
+                    let (s, r) = channel::<i32>();
+                    s.send(*phase).unwrap();
+                    (s, r)
                 })
-                .collect::<Vec<_>>();
+                .collect();
+            channels[0].0.send(0).unwrap();
+            let mut state: Vec<_> =
+                std::iter::repeat_with(|| Context::new(code.clone()).break_on_output())
+                    .take(5)
+                    .collect();
+
             loop {
                 let mut num_run = 0;
-                for (i, ios) in &mut state.iter_mut().enumerate() {
-                    if !ios.3 {
-                        ios.0.push_str(&next_input);
-                        // println!("stage {} input: {}", i, ios.0);
-                        let mut input = ios.0.as_bytes();
-                        let mut io = Io::default(&mut input, &mut ios.1);
-                        ios.3 = (&mut ios.2, &mut io).run();
-                        ios.0 = String::from_utf8(input.into()).unwrap();
+                for (i, context) in &mut state.iter_mut().enumerate() {
+                    if !context.halted() {
+                        let mut pipe = (&channels[(i + 1) % 5].0, &channels[i].1, i as i32);
+                        (context, &mut pipe as &mut dyn Io2).run();
                         num_run += 1;
-                        // println!(
-                        //     "halt: {} {}",
-                        //     ios.3,
-                        //     String::from_utf8(ios.1.clone()).unwrap()
-                        // );
-                        // if !ios.3 {
-                        next_input = String::from_utf8(ios.1.clone()).unwrap();
-                        // }
-                    }
-                    if !ios.3 {
-                        ios.1.clear();
                     }
                 }
                 if num_run == 0 {
-                    // println!("break: {}", next_input);
                     break;
                 }
-                // println!("feedback: {}", next_input);
             }
-            let out_val = next_input.trim().parse::<i32>().unwrap();
+            let out_val = channels[0].1.recv().unwrap();
             if out_val > max_out {
                 max_out = out_val;
                 max_seq = seq.clone();
             }
-            // println!("{:?}: {}", seq, next_input);
             if !seq.next_permutation() {
                 break;
             }
         }
-        // println!("max: {:?} {}", max_seq, max_out);
-        assert_eq!(max_out, 21596786);
+        (max_out, max_seq)
     }
     fn code2() -> Vec<i32> {
         vec![
@@ -235,37 +226,41 @@ mod tests {
             1002, 9, 2, 9, 4, 9, 3, 9, 1001, 9, 1, 9, 4, 9, 3, 9, 102, 2, 9, 9, 4, 9, 99,
         ]
     }
-    fn code71() -> Vec<i32> {
-        // vec![
-        //     3, 26, 1001, 26, -4, 26, 3, 27, 1002, 27, 2, 27, 1, 27, 26, 27, 4, 27, 1001, 28, -1, 28,
-        //     1005, 28, 6, 99, 0, 0, 5,
-        // ]
-        // vec![
-        //     3, 52, 1001, 52, -5, 52, 3, 53, 1, 52, 56, 54, 1007, 54, 5, 55, 1005, 55, 26, 1001, 54, -5,
-        //     54, 1105, 1, 12, 1, 53, 54, 53, 1008, 54, 0, 55, 1001, 55, 1, 55, 2, 53, 55, 53, 4, 53,
-        //     1001, 56, -1, 56, 1005, 56, 6, 99, 0, 0, 0, 0, 10,
-        // ]
+    fn code71_test1() -> Vec<i32> {
         vec![
-            3, 8, 1001, 8, 10, 8, 105, 1, 0, 0, 21, 38, 47, 64, 85, 106, 187, 268, 349, 430, 99999,
-            3, 9, 1002, 9, 4, 9, 1001, 9, 4, 9, 1002, 9, 4, 9, 4, 9, 99, 3, 9, 1002, 9, 4, 9, 4, 9,
-            99, 3, 9, 1001, 9, 3, 9, 102, 5, 9, 9, 1001, 9, 5, 9, 4, 9, 99, 3, 9, 101, 3, 9, 9,
-            102, 5, 9, 9, 1001, 9, 4, 9, 102, 4, 9, 9, 4, 9, 99, 3, 9, 1002, 9, 3, 9, 101, 2, 9, 9,
-            102, 4, 9, 9, 101, 2, 9, 9, 4, 9, 99, 3, 9, 1002, 9, 2, 9, 4, 9, 3, 9, 102, 2, 9, 9, 4,
-            9, 3, 9, 1001, 9, 2, 9, 4, 9, 3, 9, 1001, 9, 1, 9, 4, 9, 3, 9, 101, 1, 9, 9, 4, 9, 3,
-            9, 102, 2, 9, 9, 4, 9, 3, 9, 101, 2, 9, 9, 4, 9, 3, 9, 102, 2, 9, 9, 4, 9, 3, 9, 1002,
-            9, 2, 9, 4, 9, 3, 9, 1002, 9, 2, 9, 4, 9, 99, 3, 9, 102, 2, 9, 9, 4, 9, 3, 9, 1002, 9,
-            2, 9, 4, 9, 3, 9, 1001, 9, 1, 9, 4, 9, 3, 9, 1002, 9, 2, 9, 4, 9, 3, 9, 101, 1, 9, 9,
-            4, 9, 3, 9, 1002, 9, 2, 9, 4, 9, 3, 9, 1001, 9, 2, 9, 4, 9, 3, 9, 1001, 9, 1, 9, 4, 9,
-            3, 9, 101, 2, 9, 9, 4, 9, 3, 9, 101, 1, 9, 9, 4, 9, 99, 3, 9, 102, 2, 9, 9, 4, 9, 3, 9,
-            102, 2, 9, 9, 4, 9, 3, 9, 1001, 9, 1, 9, 4, 9, 3, 9, 1002, 9, 2, 9, 4, 9, 3, 9, 102, 2,
-            9, 9, 4, 9, 3, 9, 1002, 9, 2, 9, 4, 9, 3, 9, 101, 1, 9, 9, 4, 9, 3, 9, 101, 1, 9, 9, 4,
-            9, 3, 9, 101, 1, 9, 9, 4, 9, 3, 9, 1002, 9, 2, 9, 4, 9, 99, 3, 9, 1002, 9, 2, 9, 4, 9,
-            3, 9, 102, 2, 9, 9, 4, 9, 3, 9, 101, 1, 9, 9, 4, 9, 3, 9, 1001, 9, 1, 9, 4, 9, 3, 9,
-            1002, 9, 2, 9, 4, 9, 3, 9, 102, 2, 9, 9, 4, 9, 3, 9, 102, 2, 9, 9, 4, 9, 3, 9, 101, 2,
-            9, 9, 4, 9, 3, 9, 102, 2, 9, 9, 4, 9, 3, 9, 1002, 9, 2, 9, 4, 9, 99, 3, 9, 1002, 9, 2,
-            9, 4, 9, 3, 9, 101, 1, 9, 9, 4, 9, 3, 9, 102, 2, 9, 9, 4, 9, 3, 9, 1001, 9, 2, 9, 4, 9,
-            3, 9, 1002, 9, 2, 9, 4, 9, 3, 9, 1002, 9, 2, 9, 4, 9, 3, 9, 1001, 9, 1, 9, 4, 9, 3, 9,
-            1002, 9, 2, 9, 4, 9, 3, 9, 1001, 9, 1, 9, 4, 9, 3, 9, 102, 2, 9, 9, 4, 9, 99,
+            3, 26, 1001, 26, -4, 26, 3, 27, 1002, 27, 2, 27, 1, 27, 26, 27, 4, 27, 1001, 28, -1,
+            28, 1005, 28, 6, 99, 0, 0, 5,
         ]
     }
+    fn code71_test2() -> Vec<i32> {
+        vec![
+            3, 52, 1001, 52, -5, 52, 3, 53, 1, 52, 56, 54, 1007, 54, 5, 55, 1005, 55, 26, 1001, 54,
+            -5, 54, 1105, 1, 12, 1, 53, 54, 53, 1008, 54, 0, 55, 1001, 55, 1, 55, 2, 53, 55, 53, 4,
+            53, 1001, 56, -1, 56, 1005, 56, 6, 99, 0, 0, 0, 0, 10,
+        ]
+    }
+    // fn code71() -> Vec<i32> {
+    //     vec![
+    //         3, 8, 1001, 8, 10, 8, 105, 1, 0, 0, 21, 38, 47, 64, 85, 106, 187, 268, 349, 430, 99999,
+    //         3, 9, 1002, 9, 4, 9, 1001, 9, 4, 9, 1002, 9, 4, 9, 4, 9, 99, 3, 9, 1002, 9, 4, 9, 4, 9,
+    //         99, 3, 9, 1001, 9, 3, 9, 102, 5, 9, 9, 1001, 9, 5, 9, 4, 9, 99, 3, 9, 101, 3, 9, 9,
+    //         102, 5, 9, 9, 1001, 9, 4, 9, 102, 4, 9, 9, 4, 9, 99, 3, 9, 1002, 9, 3, 9, 101, 2, 9, 9,
+    //         102, 4, 9, 9, 101, 2, 9, 9, 4, 9, 99, 3, 9, 1002, 9, 2, 9, 4, 9, 3, 9, 102, 2, 9, 9, 4,
+    //         9, 3, 9, 1001, 9, 2, 9, 4, 9, 3, 9, 1001, 9, 1, 9, 4, 9, 3, 9, 101, 1, 9, 9, 4, 9, 3,
+    //         9, 102, 2, 9, 9, 4, 9, 3, 9, 101, 2, 9, 9, 4, 9, 3, 9, 102, 2, 9, 9, 4, 9, 3, 9, 1002,
+    //         9, 2, 9, 4, 9, 3, 9, 1002, 9, 2, 9, 4, 9, 99, 3, 9, 102, 2, 9, 9, 4, 9, 3, 9, 1002, 9,
+    //         2, 9, 4, 9, 3, 9, 1001, 9, 1, 9, 4, 9, 3, 9, 1002, 9, 2, 9, 4, 9, 3, 9, 101, 1, 9, 9,
+    //         4, 9, 3, 9, 1002, 9, 2, 9, 4, 9, 3, 9, 1001, 9, 2, 9, 4, 9, 3, 9, 1001, 9, 1, 9, 4, 9,
+    //         3, 9, 101, 2, 9, 9, 4, 9, 3, 9, 101, 1, 9, 9, 4, 9, 99, 3, 9, 102, 2, 9, 9, 4, 9, 3, 9,
+    //         102, 2, 9, 9, 4, 9, 3, 9, 1001, 9, 1, 9, 4, 9, 3, 9, 1002, 9, 2, 9, 4, 9, 3, 9, 102, 2,
+    //         9, 9, 4, 9, 3, 9, 1002, 9, 2, 9, 4, 9, 3, 9, 101, 1, 9, 9, 4, 9, 3, 9, 101, 1, 9, 9, 4,
+    //         9, 3, 9, 101, 1, 9, 9, 4, 9, 3, 9, 1002, 9, 2, 9, 4, 9, 99, 3, 9, 1002, 9, 2, 9, 4, 9,
+    //         3, 9, 102, 2, 9, 9, 4, 9, 3, 9, 101, 1, 9, 9, 4, 9, 3, 9, 1001, 9, 1, 9, 4, 9, 3, 9,
+    //         1002, 9, 2, 9, 4, 9, 3, 9, 102, 2, 9, 9, 4, 9, 3, 9, 102, 2, 9, 9, 4, 9, 3, 9, 101, 2,
+    //         9, 9, 4, 9, 3, 9, 102, 2, 9, 9, 4, 9, 3, 9, 1002, 9, 2, 9, 4, 9, 99, 3, 9, 1002, 9, 2,
+    //         9, 4, 9, 3, 9, 101, 1, 9, 9, 4, 9, 3, 9, 102, 2, 9, 9, 4, 9, 3, 9, 1001, 9, 2, 9, 4, 9,
+    //         3, 9, 1002, 9, 2, 9, 4, 9, 3, 9, 1002, 9, 2, 9, 4, 9, 3, 9, 1001, 9, 1, 9, 4, 9, 3, 9,
+    //         1002, 9, 2, 9, 4, 9, 3, 9, 1001, 9, 1, 9, 4, 9, 3, 9, 102, 2, 9, 9, 4, 9, 99,
+    //     ]
+    // }
 }

@@ -1,6 +1,8 @@
 use std::io::BufRead;
 use std::io::Write;
 use std::iter::FromIterator;
+use std::sync::mpsc::{Receiver, Sender};
+
 pub trait Interpreter {
     fn run(&mut self) -> bool;
     fn halted(&self) -> bool;
@@ -24,6 +26,14 @@ impl Context {
         self.break_on_output = true;
         self
     }
+    pub fn halted(&self) -> bool {
+        self.data[self.ip] == 99
+    }
+}
+
+pub trait Io2 {
+    fn read(&mut self) -> i32;
+    fn write(&mut self, v: i32);
 }
 
 pub struct Io<'a> {
@@ -41,8 +51,41 @@ impl<'a> Io<'a> {
         }
     }
 }
+impl<'a> Io2 for Io<'a> {
+    fn write(&mut self, v: i32) {
+        writeln!(self.output, "{}", v).unwrap();
+    }
+    fn read(&mut self) -> i32 {
+        let mut input: String = "".into();
+        self.input.read_line(&mut input).unwrap();
+        input.trim().parse::<i32>().unwrap()
+    }
+}
+impl Io2 for (&Sender<i32>, &Receiver<i32>, i32) {
+    fn read(&mut self) -> i32 {
+        match self.1.try_recv() {
+            Ok(i) => {
+                // println!("ch({}) read {}", self.2, i);
+                i
+            }
+            Err(err) => panic!("ch({}) read failed: {}", self.2, err),
+        }
+    }
+    fn write(&mut self, v: i32) {
+        // println!("ch({}) write {}", self.2, v);
 
-impl Interpreter for (&mut Context, &mut Io<'_>) {
+        self.0.send(v).unwrap()
+    }
+}
+
+pub struct Process {
+    pub context: Context,
+    pub input: String,
+    pub output: Vec<u8>,
+    pub break_output: bool,
+}
+
+impl Interpreter for (&mut Context, &mut dyn Io2) {
     fn run(&mut self) -> bool {
         let (context, io) = self;
         let data = &mut context.data;
@@ -92,13 +135,8 @@ impl Interpreter for (&mut Context, &mut Io<'_>) {
                 }
                 // ==================== input
                 3 => {
-                    let mut input: String = "".into();
-                    io.input.read_line(&mut input);
-                    let input = input.trim().parse::<i32>().unwrap();
-                    // println!("input: {}", input);
-
                     let c = data[context.ip + 1] as usize;
-                    data[c] = input;
+                    data[c] = io.read();
                     context.ip += 2;
                 }
                 // ==================== output
@@ -108,7 +146,7 @@ impl Interpreter for (&mut Context, &mut Io<'_>) {
                     } else {
                         &data[context.ip + 1]
                     };
-                    writeln!(io.output, "{}", *a);
+                    io.write(*a);
                     context.ip += 2;
                     if context.break_on_output {
                         break;
