@@ -12,11 +12,11 @@ pub struct Context {
     ip: usize,
     relbase: usize,
     break_on_output: bool,
-    pub data: Vec<i32>,
+    pub data: Vec<i64>,
 }
 
 impl Context {
-    pub fn new(data: Vec<i32>) -> Self {
+    pub fn new(data: Vec<i64>) -> Self {
         Context {
             ip: 0,
             relbase: 0,
@@ -31,7 +31,7 @@ impl Context {
     pub fn halted(&self) -> bool {
         self.data[self.ip] == 99
     }
-    pub fn check_size(&mut self, addr: i32) {
+    pub fn check_size(&mut self, addr: i64) {
         if addr < 0 {
             panic!("invalid address {}", addr);
         }
@@ -40,22 +40,22 @@ impl Context {
             self.data.resize(addr + 1, 0);
         }
     }
-    pub fn load(&mut self, mode: i32, offs: usize) -> i32 {
+    pub fn load(&mut self, mode: i64, offs: usize) -> i64 {
         // println!("load: {} {} {}", self.ip, offs, self.relbase);
         let addr = match mode {
             0 => self.data[self.ip + 1 + offs],
-            1 => (self.ip + 1 + offs) as i32,
-            2 => self.relbase as i32 + self.data[self.ip + 1 + offs],
+            1 => (self.ip + 1 + offs) as i64,
+            2 => self.relbase as i64 + self.data[self.ip + 1 + offs],
             _ => panic!("bad parameter mode"),
         };
         self.check_size(addr);
         // println!("load from: {}", addr);
         self.data[addr as usize]
     }
-    pub fn store(&mut self, mode: i32, offs: usize, v: i32) {
+    pub fn store(&mut self, mode: i64, offs: usize, v: i64) {
         let addr = match mode {
             0 => self.data[self.ip + 1 + offs],
-            2 => self.data[self.ip + 1 + offs] + self.relbase as i32,
+            2 => self.data[self.ip + 1 + offs] + self.relbase as i64,
             _ => panic!("bad parameter mode"),
         };
         self.check_size(addr);
@@ -64,8 +64,8 @@ impl Context {
 }
 
 pub trait Io2 {
-    fn read(&mut self) -> i32;
-    fn write(&mut self, v: i32);
+    fn read(&mut self) -> i64;
+    fn write(&mut self, v: i64);
 }
 
 pub struct Io<'a> {
@@ -84,17 +84,17 @@ impl<'a> Io<'a> {
     }
 }
 impl<'a> Io2 for Io<'a> {
-    fn write(&mut self, v: i32) {
+    fn write(&mut self, v: i64) {
         writeln!(self.output, "{}", v).unwrap();
     }
-    fn read(&mut self) -> i32 {
+    fn read(&mut self) -> i64 {
         let mut input: String = "".into();
         self.input.read_line(&mut input).unwrap();
-        input.trim().parse::<i32>().unwrap()
+        input.trim().parse::<i64>().unwrap()
     }
 }
-impl Io2 for (&Sender<i32>, &Receiver<i32>, i32) {
-    fn read(&mut self) -> i32 {
+impl Io2 for (&Sender<i64>, &Receiver<i64>, i64) {
+    fn read(&mut self) -> i64 {
         match self.1.try_recv() {
             Ok(i) => {
                 // println!("ch({}) read {}", self.2, i);
@@ -103,7 +103,7 @@ impl Io2 for (&Sender<i32>, &Receiver<i32>, i32) {
             Err(err) => panic!("ch({}) read failed: {}", self.2, err),
         }
     }
-    fn write(&mut self, v: i32) {
+    fn write(&mut self, v: i64) {
         // println!("ch({}) write {}", self.2, v);
 
         self.0.send(v).unwrap()
@@ -111,12 +111,12 @@ impl Io2 for (&Sender<i32>, &Receiver<i32>, i32) {
 }
 
 impl Io2 for () {
-    fn read(&mut self) -> i32 {
+    fn read(&mut self) -> i64 {
         let mut line = String::new();
         std::io::stdin().lock().read_line(&mut line).unwrap();
-        line.trim().parse::<i32>().unwrap()
+        line.trim().parse::<i64>().unwrap()
     }
-    fn write(&mut self, v: i32) {
+    fn write(&mut self, v: i64) {
         writeln!(std::io::stdout().lock(), "{}", v).unwrap();
     }
 }
@@ -166,8 +166,8 @@ impl Interpreter for (&mut Context, &mut dyn Io2) {
                 }
                 // ==================== input
                 3 => {
-                    let c = context.data[context.ip + 1] as usize;
-                    context.data[c] = io.read();
+                    // let c = context.data[context.ip + 1] as usize;
+                    context.store(modes[0], 0, io.read());
                     context.ip += 2;
                 }
                 // ==================== output
