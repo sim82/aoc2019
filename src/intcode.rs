@@ -10,6 +10,7 @@ pub trait Interpreter {
 
 pub struct Context {
     ip: usize,
+    relbase: usize,
     break_on_output: bool,
     pub data: Vec<i32>,
 }
@@ -18,6 +19,7 @@ impl Context {
     pub fn new(data: Vec<i32>) -> Self {
         Context {
             ip: 0,
+            relbase: 0,
             break_on_output: false,
             data: data,
         }
@@ -28,6 +30,36 @@ impl Context {
     }
     pub fn halted(&self) -> bool {
         self.data[self.ip] == 99
+    }
+    pub fn check_size(&mut self, addr: i32) {
+        if addr < 0 {
+            panic!("invalid address {}", addr);
+        }
+        let addr = addr as usize;
+        if addr >= self.data.len() {
+            self.data.resize(addr + 1, 0);
+        }
+    }
+    pub fn load(&mut self, mode: i32, offs: usize) -> i32 {
+        // println!("load: {} {} {}", self.ip, offs, self.relbase);
+        let addr = match mode {
+            0 => self.data[self.ip + 1 + offs],
+            1 => (self.ip + 1 + offs) as i32,
+            2 => self.relbase as i32 + self.data[self.ip + 1 + offs],
+            _ => panic!("bad parameter mode"),
+        };
+        self.check_size(addr);
+        // println!("load from: {}", addr);
+        self.data[addr as usize]
+    }
+    pub fn store(&mut self, mode: i32, offs: usize, v: i32) {
+        let addr = match mode {
+            0 => self.data[self.ip + 1 + offs],
+            2 => self.data[self.ip + 1 + offs] + self.relbase as i32,
+            _ => panic!("bad parameter mode"),
+        };
+        self.check_size(addr);
+        self.data[addr as usize] = v
     }
 }
 
@@ -78,6 +110,17 @@ impl Io2 for (&Sender<i32>, &Receiver<i32>, i32) {
     }
 }
 
+impl Io2 for () {
+    fn read(&mut self) -> i32 {
+        let mut line = String::new();
+        std::io::stdin().lock().read_line(&mut line).unwrap();
+        line.trim().parse::<i32>().unwrap()
+    }
+    fn write(&mut self, v: i32) {
+        writeln!(std::io::stdout().lock(), "{}", v).unwrap();
+    }
+}
+
 pub struct Process {
     pub context: Context,
     pub input: String,
@@ -88,46 +131,34 @@ pub struct Process {
 impl Interpreter for (&mut Context, &mut dyn Io2) {
     fn run(&mut self) -> bool {
         let (context, io) = self;
-        let data = &mut context.data;
+        // let data = &context.data;
 
-        while context.ip < data.len() {
-            let opcode = data[context.ip] % 100;
-            let mut modes = vec![false; 0];
-            let mut modenum = data[context.ip] / 100;
+        while context.ip < context.data.len() {
+            let opcode = context.data[context.ip] % 100;
+            let mut modes = vec![0; 0];
+            let mut modenum = context.data[context.ip] / 100;
             // println!("opcode {}", opcode);
 
             while modenum != 0 {
-                modes.push(modenum % 10 == 1);
+                modes.push(modenum % 10);
                 modenum /= 10;
             }
             // if !modes.is_empty() {
             //     println!("modes {:?}", modes);
             // }
             if modes.len() < 3 {
-                modes.resize(3, false);
+                modes.resize(3, 0);
             }
             match opcode {
                 // ==================== ALU
                 1 | 2 | 7 | 8 => {
-                    let a = if !modes[0] {
-                        &data[data[context.ip + 1] as usize]
-                    } else {
-                        &data[context.ip + 1]
-                    };
-                    let b = if !modes[1] {
-                        &data[data[context.ip + 2] as usize]
-                    } else {
-                        &data[context.ip + 2]
-                    };
-                    if modes[2] {
-                        panic!("bad output mode 1");
-                    }
-                    let c = data[context.ip + 3] as usize;
+                    let a = context.load(modes[0], 0);
+                    let b = context.load(modes[1], 1);
                     match opcode {
-                        1 => data[c] = *a + *b,
-                        2 => data[c] = *a * *b,
-                        7 => data[c] = (*a < *b).into(),
-                        8 => data[c] = (*a == *b).into(),
+                        1 => context.store(modes[2], 2, a + b),
+                        2 => context.store(modes[2], 2, a * b),
+                        7 => context.store(modes[2], 2, (a < b).into()),
+                        8 => context.store(modes[2], 2, (a == b).into()),
 
                         _ => panic!("bad opcode {}", opcode),
                     }
@@ -135,42 +166,40 @@ impl Interpreter for (&mut Context, &mut dyn Io2) {
                 }
                 // ==================== input
                 3 => {
-                    let c = data[context.ip + 1] as usize;
-                    data[c] = io.read();
+                    let c = context.data[context.ip + 1] as usize;
+                    context.data[c] = io.read();
                     context.ip += 2;
                 }
                 // ==================== output
-                4 => {
-                    let a = if !modes[0] {
-                        &data[data[context.ip + 1] as usize]
-                    } else {
-                        &data[context.ip + 1]
-                    };
-                    io.write(*a);
-                    context.ip += 2;
-                    if context.break_on_output {
-                        break;
+                4 | 9 => {
+                    let a = context.load(modes[0], 0);
+                    match opcode {
+                        4 => {
+                            io.write(a);
+                            if context.break_on_output {
+                                context.ip += 2;
+                                break;
+                            }
+                        }
+                        9 => {
+                            context.relbase = (context.relbase as isize + a as isize) as usize;
+                            // println!("relbase: {}", context.relbase);
+                        }
+                        _ => panic!("bad opcode {}", opcode),
                     }
+                    context.ip += 2;
                 }
                 // ==================== cond jump
                 5 | 6 => {
-                    let a = if !modes[0] {
-                        &data[data[context.ip + 1] as usize]
-                    } else {
-                        &data[context.ip + 1]
-                    };
-                    let b = if !modes[1] {
-                        &data[data[context.ip + 2] as usize]
-                    } else {
-                        &data[context.ip + 2]
-                    };
+                    let a = context.load(modes[0], 0);
+                    let b = context.load(modes[1], 1);
                     let do_jump = match opcode {
-                        5 => *a != 0,
-                        6 => *a == 0,
+                        5 => a != 0,
+                        6 => a == 0,
                         _ => panic!("bad opcode {}", opcode),
                     };
                     if do_jump {
-                        context.ip = *b as usize;
+                        context.ip = b as usize;
                     // println!("jump to {}", context.ip);
                     } else {
                         context.ip += 3;
