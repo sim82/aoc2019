@@ -93,7 +93,7 @@ mod tests {
         assert_eq!(day7_1_pipe(code71_test2()), (18216, [9, 7, 8, 5, 6]));
         assert_eq!(day7_1_pipe(code7()).0, 21596786);
     }
-    fn day7_1_pipe(code: Vec<i32>) -> (i32, [i32; 5]) {
+    fn day7_1_pipe(code: Vec<i64>) -> (i64, [i64; 5]) {
         let mut seq = [5, 6, 7, 8, 9];
         // let mut seq = [9, 8, 7, 6, 5];
         let mut max_out = 0;
@@ -104,7 +104,7 @@ mod tests {
             let channels: Vec<_> = seq
                 .iter()
                 .map(|phase| {
-                    let (s, r) = channel::<i32>();
+                    let (s, r) = channel::<i64>();
                     s.send(*phase).unwrap();
                     (s, r)
                 })
@@ -119,7 +119,7 @@ mod tests {
                 let mut num_run = 0;
                 for (i, context) in &mut state.iter_mut().enumerate() {
                     if !context.halted() {
-                        let mut pipe = (&channels[(i + 1) % 5].0, &channels[i].1, i as i32);
+                        let mut pipe = (&channels[(i + 1) % 5].0, &channels[i].1, i as i64);
                         (context, &mut pipe as &mut dyn Io2).run();
                         num_run += 1;
                     }
@@ -139,7 +139,7 @@ mod tests {
         }
         (max_out, max_seq)
     }
-    fn code2() -> Vec<i32> {
+    fn code2() -> Vec<i64> {
         vec![
             1, 12, 2, 3, 1, 1, 2, 3, 1, 3, 4, 3, 1, 5, 0, 3, 2, 1, 10, 19, 2, 9, 19, 23, 2, 23, 10,
             27, 1, 6, 27, 31, 1, 31, 6, 35, 2, 35, 10, 39, 1, 39, 5, 43, 2, 6, 43, 47, 2, 47, 10,
@@ -149,7 +149,7 @@ mod tests {
             119, 6, 123, 1, 123, 2, 127, 1, 127, 5, 0, 99, 2, 14, 0, 0,
         ]
     }
-    fn code5() -> Vec<i32> {
+    fn code5() -> Vec<i64> {
         vec![
             3, 225, 1, 225, 6, 6, 1100, 1, 238, 225, 104, 0, 1102, 31, 68, 225, 1001, 13, 87, 224,
             1001, 224, -118, 224, 4, 224, 102, 8, 223, 223, 1001, 224, 7, 224, 1, 223, 224, 223, 1,
@@ -191,7 +191,7 @@ mod tests {
             224, 674, 1001, 223, 1, 223, 4, 223, 99, 226,
         ]
     }
-    fn code7() -> Vec<i32> {
+    fn code7() -> Vec<i64> {
         // vec![
         //     3, 15, 3, 16, 1002, 16, 10, 16, 1, 16, 15, 15, 4, 15, 99, 0, 0,
         // ]
@@ -226,13 +226,13 @@ mod tests {
             1002, 9, 2, 9, 4, 9, 3, 9, 1001, 9, 1, 9, 4, 9, 3, 9, 102, 2, 9, 9, 4, 9, 99,
         ]
     }
-    fn code71_test1() -> Vec<i32> {
+    fn code71_test1() -> Vec<i64> {
         vec![
             3, 26, 1001, 26, -4, 26, 3, 27, 1002, 27, 2, 27, 1, 27, 26, 27, 4, 27, 1001, 28, -1,
             28, 1005, 28, 6, 99, 0, 0, 5,
         ]
     }
-    fn code71_test2() -> Vec<i32> {
+    fn code71_test2() -> Vec<i64> {
         vec![
             3, 52, 1001, 52, -5, 52, 3, 53, 1, 52, 56, 54, 1007, 54, 5, 55, 1005, 55, 26, 1001, 54,
             -5, 54, 1105, 1, 12, 1, 53, 54, 53, 1008, 54, 0, 55, 1001, 55, 1, 55, 2, 53, 55, 53, 4,

@@ -159,7 +159,7 @@ fn day7_1_nt() {
         let channels: Vec<_> = seq
             .iter()
             .map(|phase| {
-                let (s, r) = channel::<i32>();
+                let (s, r) = channel::<i64>();
                 s.send(*phase).unwrap();
                 (s, r)
             })
@@ -174,7 +174,7 @@ fn day7_1_nt() {
             let mut num_run = 0;
             for (i, ios) in &mut state.iter_mut().enumerate() {
                 if !ios.1 {
-                    let mut pipe = (&channels[(i + 1) % 5].0, &channels[i].1, i as i32);
+                    let mut pipe = (&channels[(i + 1) % 5].0, &channels[i].1, i as i64);
                     // println!("stage {} input: {}", i, ios.0);
                     ios.1 = (&mut ios.0, &mut pipe as &mut dyn Io2).run();
                     num_run += 1;
@@ -199,7 +199,7 @@ fn day7_1_nt() {
     // println!("max: {:?} {}", max_seq, max_out);
     assert_eq!(max_out, 21596786);
 }
-fn code2() -> Vec<i32> {
+fn code2() -> Vec<i64> {
     vec![
         1, 12, 2, 3, 1, 1, 2, 3, 1, 3, 4, 3, 1, 5, 0, 3, 2, 1, 10, 19, 2, 9, 19, 23, 2, 23, 10, 27,
         1, 6, 27, 31, 1, 31, 6, 35, 2, 35, 10, 39, 1, 39, 5, 43, 2, 6, 43, 47, 2, 47, 10, 51, 1,
@@ -209,7 +209,7 @@ fn code2() -> Vec<i32> {
         127, 1, 127, 5, 0, 99, 2, 14, 0, 0,
     ]
 }
-fn code5() -> Vec<i32> {
+fn code5() -> Vec<i64> {
     vec![
         3, 225, 1, 225, 6, 6, 1100, 1, 238, 225, 104, 0, 1102, 31, 68, 225, 1001, 13, 87, 224,
         1001, 224, -118, 224, 4, 224, 102, 8, 223, 223, 1001, 224, 7, 224, 1, 223, 224, 223, 1,
@@ -250,7 +250,7 @@ fn code5() -> Vec<i32> {
     ]
 }
 
-fn code7() -> Vec<i32> {
+fn code7() -> Vec<i64> {
     // vec![
     //     3, 15, 3, 16, 1002, 16, 10, 16, 1, 16, 15, 15, 4, 15, 99, 0, 0,
     // ]
@@ -287,7 +287,7 @@ fn code7() -> Vec<i32> {
     ]
 }
 
-fn code71() -> Vec<i32> {
+fn code71() -> Vec<i64> {
     // vec![
     //     3, 26, 1001, 26, -4, 26, 3, 27, 1002, 27, 2, 27, 1, 27, 26, 27, 4, 27, 1001, 28, -1, 28,
     //     1005, 28, 6, 99, 0, 0, 5,
