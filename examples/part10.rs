@@ -1,13 +1,12 @@
 use aoc2019::monitoring::*;
 use std::collections::HashSet;
 
-fn load_map(data: &str) -> (Vec<Point>, Option<Point>) {
-    let points = data
-        .lines()
+fn load_map(data: &str, filter: char) -> Vec<Point> {
+    data.lines()
         .enumerate()
         .flat_map(|(y, line)| {
             line.chars().enumerate().filter_map(move |(x, c)| {
-                if c == '#' {
+                if c == filter {
                     Some(Point {
                         x: x as i32,
                         y: y as i32,
@@ -17,31 +16,7 @@ fn load_map(data: &str) -> (Vec<Point>, Option<Point>) {
                 }
             })
         })
-        .collect();
-
-    let start_points: Vec<_> = data
-        .lines()
-        .enumerate()
-        .flat_map(|(y, line)| {
-            line.chars().enumerate().filter_map(move |(x, c)| {
-                if c == 'X' {
-                    Some(Point {
-                        x: x as i32,
-                        y: y as i32,
-                    })
-                } else {
-                    None
-                }
-            })
-        })
-        .collect();
-
-    // println!("start: {:?}", start);
-    if start_points.is_empty() {
-        (points, None)
-    } else {
-        (points, Some(start_points[0]))
-    }
+        .collect()
 }
 
 fn num_blockers(points: Vec<Point>) -> Vec<(i32, Point)> {
@@ -74,19 +49,19 @@ fn num_blockers(points: Vec<Point>) -> Vec<(i32, Point)> {
 }
 
 fn part1() {
-    let num_blocked = num_blockers(load_map(include_str!("input10_1.txt")).0);
+    let num_blocked = num_blockers(load_map(include_str!("input10_1.txt"), '#'));
     println!("{} {:?}", num_blocked[0].0, num_blocked[0].1);
 
-    let num_blocked = num_blockers(load_map(include_str!("input10_2.txt")).0);
+    let num_blocked = num_blockers(load_map(include_str!("input10_2.txt"), '#'));
     println!("{} {:?}", num_blocked[0].0, num_blocked[0].1);
 
-    let num_blocked = num_blockers(load_map(include_str!("input10_3.txt")).0);
+    let num_blocked = num_blockers(load_map(include_str!("input10_3.txt"), '#'));
     println!("{} {:?}", num_blocked[0].0, num_blocked[0].1);
 
-    let num_blocked = num_blockers(load_map(include_str!("input10_4.txt")).0);
+    let num_blocked = num_blockers(load_map(include_str!("input10_4.txt"), '#'));
     println!("{} {:?}", num_blocked[0].0, num_blocked[0].1);
 
-    let points = load_map(include_str!("input10_5.txt")).0;
+    let points = load_map(include_str!("input10_5.txt"), '#');
     let num_points = points.len() as i32;
     let num_blocked = num_blockers(points);
     println!(
@@ -96,12 +71,30 @@ fn part1() {
     );
 }
 
+fn num_blockers2(points: Vec<Point>) -> (i32, Point) {
+    for src in &points {
+        let polar_points: Vec<_> = points
+            .iter()
+            .filter(|point| *point != src)
+            .map(|point| (point - &src).to_polar())
+            .collect();
+        polar_points.sort_by(|pola, polb| pola.partial_cmp(polb).unwrap());
+    }
+    // (0, {})
+}
+
 fn main() {
     part1();
-    let (points, start) = load_map(include_str!("input10_6.txt"));
-    let start = start.unwrap();
+    let points = load_map(include_str!("input10_5.txt"), '#');
+    let num_blocked = num_blockers(points.clone());
 
-    let rel_points: Vec<_> = points.iter().map(|point| point - &start).collect();
+    let start = num_blocked[0].1;
+    println!("start: {:?}", start);
+    let rel_points: Vec<_> = points
+        .iter()
+        .filter(|point| **point != start)
+        .map(|point| point - &start)
+        .collect();
     let polar_points: Vec<_> = rel_points.iter().map(|point| point.to_polar()).collect();
 
     for (point, polar) in rel_points.iter().zip(&polar_points) {

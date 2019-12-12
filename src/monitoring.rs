@@ -11,20 +11,20 @@ impl PartialOrd for Polar {
     fn partial_cmp(&self, other: &Polar) -> Option<Ordering> {
         let delta = 1e-4;
         if (self.angle - other.angle).abs() < delta {
-            println!(
-                "cmp1: {:?} {:?} {:?}",
-                self,
-                other,
-                self.dist.partial_cmp(&other.dist)
-            );
+            // println!(
+            //     "cmp1: {:?} {:?} {:?}",
+            //     self,
+            //     other,
+            //     self.dist.partial_cmp(&other.dist)
+            // );
             self.dist.partial_cmp(&other.dist)
         } else {
-            println!(
-                "cmp2: {:?} {:?} {:?}",
-                self,
-                other,
-                self.angle.partial_cmp(&other.angle)
-            );
+            // println!(
+            //     "cmp2: {:?} {:?} {:?}",
+            //     self,
+            //     other,
+            //     self.angle.partial_cmp(&other.angle)
+            // );
 
             self.angle.partial_cmp(&other.angle)
         }
@@ -37,6 +37,9 @@ pub struct Point {
 }
 
 impl Point {
+    pub fn new(x: i32, y: i32) -> Self {
+        Point { x, y }
+    }
     pub fn minimize(&self) -> Point {
         let mut p = self.clone();
         let primes = [
