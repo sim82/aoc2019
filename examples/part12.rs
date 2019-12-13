@@ -1,5 +1,5 @@
+use std::collections::HashSet;
 use std::ops::{Add, Sub};
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct Point3 {
     pub x: i32,
@@ -107,7 +107,42 @@ fn simulate(state: [Body; 4]) -> [Body; 4] {
     }
     state_new
 }
+
+fn calc_primes() {
+    let mut primes = vec![2 as i64];
+
+    for i in 3 as i64.. {
+        if primes.iter().filter(|x| i % *x == 0).count() != 0 {
+            continue;
+        }
+        primes.push(i);
+        println!("prime: {}", i)
+    }
+}
+
+fn get_prime_factors(mut v: i64) -> Vec<i64> {
+    let mut primes = Vec::new();
+    let mut factors = HashSet::new();
+    for i in 2 as i64.. {
+        if primes.iter().filter(|x| i % *x == 0).count() != 0 {
+            continue;
+        }
+        primes.push(i);
+        // println!("prime: {}", i);
+        while v % i == 0 {
+            println!("factor {}", i);
+            v /= i;
+            factors.insert(i);
+        }
+        if i > v {
+            break;
+        }
+    }
+
+    factors.iter().cloned().collect()
+}
 fn main() {
+    // calc_primes();
     // let mut state = [
     //     Body::new(-1, 0, 2),
     //     Body::new(2, -10, -7),
@@ -143,6 +178,10 @@ fn main() {
     let mut last_state: Option<[Body; 4]> = None;
     let mut last_state2: Option<[Body; 4]> = None;
 
+    let mut have_x = false;
+    let mut have_y = false;
+    let mut have_z = false;
+    let mut factors = Vec::<i64>::new();
     for i in 0 as i64.. {
         state = simulate(state);
 
@@ -189,20 +228,30 @@ fn main() {
             }
         }
 
-        if x_eq == 4 {
+        if x_eq == 4 && !have_x {
             println!("x cycle: {}", i + 1);
+            factors.append(&mut get_prime_factors(i + 1));
+            have_x = true;
         }
-        if y_eq == 4 {
+        if y_eq == 4 && !have_y {
             println!("y cycle: {}", i + 1);
+            factors.append(&mut get_prime_factors(i + 1));
+            have_y = true;
         }
-        if z_eq == 4 {
+        if z_eq == 4 && !have_z {
             println!("z cycle: {}", i + 1);
+            factors.append(&mut get_prime_factors(i + 1));
+            have_z = true;
+        }
+        if have_x && have_y && have_z {
+            break;
         }
         // let energy = state.iter().map(|body| body.energy()).sum::<i32>();
         // println!("energy: {} {}", i, energy);
-        if state == initial_state {
-            println!("cycle: {}", i + 1);
-            break;
-        }
+        // if state == initial_state {
+        //     println!("cycle: {}", i + 1);
+        //     break;
+        // }
     }
+    println!("factors: {:?}", factors);
 }

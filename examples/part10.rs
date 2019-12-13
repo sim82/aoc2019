@@ -71,17 +71,17 @@ fn part1() {
     );
 }
 
-fn num_blockers2(points: Vec<Point>) -> (i32, Point) {
-    for src in &points {
-        let polar_points: Vec<_> = points
-            .iter()
-            .filter(|point| *point != src)
-            .map(|point| (point - &src).to_polar())
-            .collect();
-        polar_points.sort_by(|pola, polb| pola.partial_cmp(polb).unwrap());
-    }
-    // (0, {})
-}
+// fn num_blockers2(points: Vec<Point>) -> (i32, Point) {
+//     for src in &points {
+//         let polar_points: Vec<_> = points
+//             .iter()
+//             .filter(|point| *point != src)
+//             .map(|point| (point - &src).to_polar())
+//             .collect();
+//         polar_points.sort_by(|pola, polb| pola.partial_cmp(polb).unwrap());
+//     }
+//     // (0, {})
+// }
 
 fn main() {
     part1();
