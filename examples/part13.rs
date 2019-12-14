@@ -64,15 +64,16 @@ impl ArcadeScreen {
             for x in 0..=max_x {
                 let d = match self.tiles.get(&Point::new(x, y)) {
                     Some(t) => match t {
-                        TileType::Empty => ' ',
-                        TileType::Ball => 'O',
-                        TileType::Block => '#',
-                        TileType::HPaddle => '=',
-                        TileType::Wall => '+',
+                        TileType::Empty => termion::color::Bg(termion::color::Rgb(0, 255, 0)),
+                        TileType::Ball => termion::color::Bg(termion::color::Rgb(255, 255, 0)),
+                        TileType::Block => termion::color::Bg(termion::color::Rgb(255, 0, 0)),
+                        TileType::HPaddle => termion::color::Bg(termion::color::Rgb(0, 0, 255)),
+                        TileType::Wall => termion::color::Bg(termion::color::Rgb(255, 255, 255)),
                     },
-                    None => 'X',
+                    None => termion::color::Bg(termion::color::Rgb(0, 0, 0)),
                 };
-                line.push(d);
+                line.push_str(&format!("{} ", d));
+                // line.push(' ');
             }
             // println!("{}", line);
             write!(
@@ -136,6 +137,11 @@ impl Io2 for ArcadeScreen {
             // self.draw();
             // std::thread::sleep(std::time::Duration::from_millis(10));
         }
+    }
+}
+impl Drop for ArcadeScreen {
+    fn drop(&mut self) {
+        write!(self.stdout, "{}", termion::cursor::Show);
     }
 }
 
