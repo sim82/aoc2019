@@ -5,6 +5,7 @@ use std::sync::mpsc::{Receiver, Sender};
 
 pub trait Interpreter {
     fn run(&mut self) -> bool;
+    fn run_for(&mut self, steps: i64) -> bool;
     fn halted(&self) -> bool;
 }
 
@@ -130,10 +131,13 @@ pub struct Process {
 
 impl Interpreter for (&mut Context, &mut dyn Io2) {
     fn run(&mut self) -> bool {
+        self.run_for(-1)
+    }
+    fn run_for(&mut self, mut steps: i64) -> bool {
         let (context, io) = self;
         // let data = &context.data;
-
-        while context.ip < context.data.len() {
+        while steps != 0 && context.ip < context.data.len() {
+            steps -= 1;
             let opcode = context.data[context.ip] % 100;
             let mut modes = vec![0; 0];
             let mut modenum = context.data[context.ip] / 100;

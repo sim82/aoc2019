@@ -9,3 +9,6 @@ edition = "2018"
 [dependencies]
 permutohedron = "0.2"
 termion = "1"
+rand = "*"
+pathfinding = "2"
+ctrlc = "*"
