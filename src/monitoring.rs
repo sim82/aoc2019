@@ -30,6 +30,61 @@ impl PartialOrd for Polar {
         }
     }
 }
+#[derive(Clone)]
+pub enum Dir {
+    Up,
+    Down,
+    Left,
+    Right,
+}
+impl Dir {
+    pub fn to_char(&self) -> char {
+        match self {
+            Dir::Up => '^',
+            Dir::Right => '>',
+            Dir::Down => 'v',
+            Dir::Left => '<',
+        }
+    }
+    // pub fn to_point(&self) -> Point {
+    //     self.into()
+    // }
+}
+pub trait TurnDir {
+    fn turn_right(&self) -> Self;
+    fn turn_left(&self) -> Self;
+}
+
+impl TurnDir for Dir {
+    fn turn_right(&self) -> Self {
+        match self {
+            Dir::Up => Dir::Right,
+            Dir::Right => Dir::Down,
+            Dir::Down => Dir::Left,
+            Dir::Left => Dir::Up,
+        }
+    }
+    fn turn_left(&self) -> Self {
+        match self {
+            Dir::Up => Dir::Left,
+            Dir::Left => Dir::Down,
+            Dir::Down => Dir::Right,
+            Dir::Right => Dir::Up,
+        }
+    }
+}
+impl From<char> for Dir {
+    fn from(c: char) -> Dir {
+        match c {
+            '^' => Dir::Up,
+            '>' => Dir::Right,
+            'v' => Dir::Down,
+            '<' => Dir::Left,
+            _ => panic!("bad direction {}", c),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Point {
     pub x: i32,
@@ -40,8 +95,23 @@ impl Point {
     pub fn zero() -> Self {
         Point { x: 0, y: 0 }
     }
+    pub fn up() -> Self {
+        Point { x: 0, y: -1 }
+    }
+    pub fn down() -> Self {
+        Point { x: 0, y: 1 }
+    }
+    pub fn left() -> Self {
+        Point { x: -1, y: 0 }
+    }
+    pub fn right() -> Self {
+        Point { x: 1, y: 0 }
+    }
     pub fn new(x: i32, y: i32) -> Self {
         Point { x, y }
+    }
+    pub fn move_into(&self, dir: &Dir) -> Point {
+        *self + dir.into()
     }
     pub fn minimize(&self) -> Point {
         let mut p = self.clone();
@@ -82,6 +152,26 @@ impl Point {
             angle,
             dist,
             // oo_dist: 1.0 / dist,
+        }
+    }
+}
+impl From<Dir> for Point {
+    fn from(dir: Dir) -> Point {
+        match dir {
+            Dir::Up => Point::up(),
+            Dir::Down => Point::down(),
+            Dir::Left => Point::left(),
+            Dir::Right => Point::right(),
+        }
+    }
+}
+impl From<&Dir> for Point {
+    fn from(dir: &Dir) -> Point {
+        match dir {
+            Dir::Up => Point::up(),
+            Dir::Down => Point::down(),
+            Dir::Left => Point::left(),
+            Dir::Right => Point::right(),
         }
     }
 }

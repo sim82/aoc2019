@@ -1,6 +1,9 @@
 use aoc2019::monitoring::*;
 use pathfinding::directed::dijkstra;
+use pathfinding::prelude::astar;
 use pathfinding::prelude::dijkstra;
+use pathfinding::prelude::fringe;
+
 use rand::prelude::*;
 use std::collections::HashSet;
 use std::io::Read;
@@ -110,7 +113,26 @@ fn main() {
 
         if do_path {
             touched = HashSet::new();
-            let res = dijkstra(
+            // let res = dijkstra(
+            //     &start,
+            //     |p| {
+            //         touched.insert(*p);
+            //         (1..=4)
+            //             .filter_map(|dir| {
+            //                 let next = simulate_move(p, dir);
+            //                 if !walls.contains(&next) {
+            //                     Some((next, 1))
+            //                 } else {
+            //                     None
+            //                 }
+            //             })
+            //             .collect::<Vec<(Point, i64)>>()
+            //     },
+            //     |p| return *p == goal,
+            // )
+            // .unwrap();
+
+            let res = astar(
                 &start,
                 |p| {
                     touched.insert(*p);
@@ -125,9 +147,11 @@ fn main() {
                         })
                         .collect::<Vec<(Point, i64)>>()
                 },
+                |p| ((p.x - goal.x).abs() + (p.y - goal.y).abs()) as i64,
                 |p| return *p == goal,
             )
             .unwrap();
+
             path = res.0;
             do_path = false;
         }
