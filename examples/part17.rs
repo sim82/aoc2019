@@ -60,33 +60,36 @@ impl Camera {
         }
     }
 
-    fn trace_segment(&mut self, mut pos: Point, mut dir: Dir) -> Option<(Point, Dir)> {
-        dir = {
+    fn trace_segment(&mut self, mut pos: Point, mut dir: Dir) -> Option<(Point, Dir, char, usize)> {
+        // let mut cmd;
+        let (mut dir, cmd) = {
             if self.scaffold.contains(&pos.move_into(&dir.turn_left())) {
                 // println!("turn left");
 
-                dir.turn_left()
+                (dir.turn_left(), 'L')
             } else if self.scaffold.contains(&pos.move_into(&dir.turn_right())) {
                 // println!("turn right");
 
-                dir.turn_right()
+                (dir.turn_right(), 'R')
             } else {
                 println!("end");
                 return None;
             }
         };
-
+        let mut num = 0;
         while self.scaffold.contains(&pos.move_into(&dir)) {
             pos = pos.move_into(&dir);
+            num += 1;
         }
-        Some((pos, dir))
+        Some((pos, dir, cmd, num))
     }
     fn trace_segments(&mut self) {
         let mut pos = self.bot_pos.clone();
         let mut dir = self.bot_dir.clone();
         loop {
-            if let Some((new_pos, new_dir)) = self.trace_segment(pos, dir) {
-                println!("move {:?}", new_pos - pos);
+            if let Some((new_pos, new_dir, cmd, num)) = self.trace_segment(pos, dir) {
+                // println!("move {:?}", new_pos - pos);
+                println!("{} {}", cmd, num);
                 pos = new_pos;
                 dir = new_dir;
             } else {
