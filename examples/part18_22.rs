@@ -1,5 +1,6 @@
 use aoc2019::monitoring::*;
 use pathfinding::prelude::dijkstra;
+use std::collections::HashSet;
 
 #[derive(PartialEq, Eq, Hash, Clone, Debug)]
 struct State {
@@ -10,7 +11,7 @@ struct State {
 
 struct Graph {
     transitions: Vec<Vec<char>>,
-    nodes: Vec<(Point, char)>
+    nodes: Vec<(Point, char)>,
 }
 
 fn to_lowercase_western(c: &char) -> char {
@@ -26,15 +27,18 @@ impl Graph {
     fn new(transitions: Vec<Vec<char>>) -> Graph {
         let mut nodes = Vec::new();
         for (y, line) in transitions.iter().enumerate() {
-            for (x, c) in line.iter().enumerate().filter_map(|(x,c)| if *c == '@' || c.is_lowercase() || c.is_uppercase() { Some((x, c)) } else {None}) {
-                nodes.push((Point::new(x as i32, y as i32), *c)); 
+            for (x, c) in line.iter().enumerate().filter_map(|(x, c)| {
+                if *c == '@' || c.is_lowercase() || c.is_uppercase() {
+                    Some((x, c))
+                } else {
+                    None
+                }
+            }) {
+                nodes.push((Point::new(x as i32, y as i32), *c));
             }
         }
 
-        Graph {
-            transitions,
-            nodes,
-        }
+        Graph { transitions, nodes }
     }
 
     fn get(&self, pos: Point) -> char {
@@ -49,15 +53,20 @@ impl Graph {
     fn can_move_to(&self, state: &State, dir: Dir) -> bool {
         let pos = state.pos.move_into(&dir);
         let field = self.get(pos);
-        
         match field {
             '.' => true,
-            x if x == state.goal => true,    
+            x if x == state.goal => true,
             _ => false,
         }
     }
     fn move_to(&self, state: &State, dir: Dir) -> (State, usize) {
-        State{ state.pos.move_into(&dir), 1};
+        (
+            State {
+                pos: state.pos.move_into(&dir),
+                goal: state.goal,
+            },
+            1,
+        )
     }
 
     fn successors(&self, state: &State) -> Vec<(State, usize)> {
@@ -76,27 +85,50 @@ impl Graph {
         }
         succ
     }
+
+    fn optimize(&self) -> Graph2 {
+        let mut edges = HashSet::<(Point, Point)>::new();
+        for start in &self.nodes {
+            for goal in &self.nodes {
+                if start == goal {
+                    continue;
+                }
+
+                if let Some(res) = dijkstra(
+                    &State {
+                        pos: start.0.clone(),
+                        goal: goal.1,
+                    },
+                    |state| self.successors(state),
+                    |state| state.pos == goal.0,
+                ) {}
+            }
+        }
+        Graph2 {}
+    }
 }
+
+struct Graph2 {}
 
 fn main() {
     let data = data18();
 
     let data: Vec<Vec<char>> = data18().iter().map(|line| line.chars().collect()).collect();
     let graph = Graph::new(data);
-
-    let init_state = State {
-        pos: graph.start.clone(),
-        keys: Vec::new(),
-    };
-    let res = dijkstra(
-        &init_state,
-        |state| {
-            let succ = graph.successors(state);
-            succ
-        },
-        |state| state.keys.len() == graph.num_keys,
-    );
-    println!("res: {:?}", res);
+    let graph2 = graph.optimize();
+    // let init_state = State {
+    //     pos: graph.start.clone(),
+    //     keys: Vec::new(),
+    // };
+    // let res = dijkstra(
+    //     &init_state,
+    //     |state| {
+    //         let succ = graph.successors(state);
+    //         succ
+    //     },
+    //     |state| state.keys.len() == graph.num_keys,
+    // );
+    // println!("res: {:?}", res);
 }
 
 fn data18() -> Vec<&'static str> {
