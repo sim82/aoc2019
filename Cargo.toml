@@ -12,3 +12,7 @@ termion = "1"
 rand = "*"
 pathfinding = "2"
 ctrlc = "*"
+smallvec = "*"
+
+[profile.release]
+debug = true

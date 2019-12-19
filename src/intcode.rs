@@ -1,3 +1,4 @@
+use smallvec::SmallVec;
 use std::io::BufRead;
 use std::io::Write;
 use std::iter::FromIterator;
@@ -23,6 +24,22 @@ impl Context {
             relbase: 0,
             break_on_output: false,
             data: data,
+        }
+    }
+    pub fn reset(&mut self, data: &Vec<i64>) {
+        self.ip = 0;
+        self.relbase = 0;
+        if self.data.len() < data.len() {
+            self.data = data.clone();
+        } else {
+            // self.data.copy_from_slice(&data[..]);
+            // println!("reset {} {}", self.data.len(), data.len());
+            self.data[..data.len()].copy_from_slice(data);
+            if self.data.len() > data.len() {
+                for i in &mut self.data[data.len()..] {
+                    *i = 0;
+                }
+            }
         }
     }
     pub fn break_on_output(mut self) -> Self {
@@ -139,7 +156,8 @@ impl Interpreter for (&mut Context, &mut dyn Io2) {
         while steps != 0 && context.ip < context.data.len() {
             steps -= 1;
             let opcode = context.data[context.ip] % 100;
-            let mut modes = vec![0; 0];
+            let mut modes = SmallVec::<[i64; 4]>::new(); // vec![0; 0];
+            modes.reserve(3);
             let mut modenum = context.data[context.ip] / 100;
             // println!("opcode {}", opcode);
 
