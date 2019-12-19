@@ -1,17 +1,18 @@
 use aoc2019::monitoring::*;
-use pathfinding::prelude::astar;
 use pathfinding::prelude::dijkstra;
+use std::collections::HashMap;
+use std::collections::HashSet;
 
 #[derive(PartialEq, Eq, Hash, Clone, Debug)]
 struct State {
-    pos: [Point; 4],
-    keys: Vec<char>,
+    pos: Point,
+    goal: char,
+    // keys: Vec<char>,
 }
 
 struct Graph {
     transitions: Vec<Vec<char>>,
-    starts: Vec<Point>,
-    num_keys: usize,
+    nodes: Vec<(Point, char)>,
 }
 
 fn to_lowercase_western(c: &char) -> char {
@@ -25,27 +26,20 @@ fn to_lowercase_western(c: &char) -> char {
 
 impl Graph {
     fn new(transitions: Vec<Vec<char>>) -> Graph {
-        let mut starts = Vec::new();
-        let mut num_keys = 0;
+        let mut nodes = Vec::new();
         for (y, line) in transitions.iter().enumerate() {
-            // println!("line: {:?}", line);
-            for x in line
-                .iter()
-                .enumerate()
-                .filter_map(|(x, c)| if *c == '@' { Some(x) } else { None })
-            {
-                println!("start: {} {}", x, y);
-                starts.push(Point::new(x as i32, y as i32));
+            for (x, c) in line.iter().enumerate().filter_map(|(x, c)| {
+                if c.is_digit(10) || c.is_lowercase() || c.is_uppercase() {
+                    Some((x, c))
+                } else {
+                    None
+                }
+            }) {
+                nodes.push((Point::new(x as i32, y as i32), *c));
             }
-            num_keys += line.iter().filter(|x| x.is_lowercase()).count();
         }
-        println!("start: {:?}\nnum_keys: {}", starts, num_keys);
 
-        Graph {
-            transitions,
-            starts,
-            num_keys,
-        }
+        Graph { transitions, nodes }
     }
 
     fn get(&self, pos: Point) -> char {
@@ -57,59 +51,121 @@ impl Graph {
         self.transitions[y as usize][x as usize]
     }
 
-    fn can_move_to(&self, state: &State, dir: Dir, num: usize) -> bool {
-        let pos = state.pos[num].move_into(&dir);
+    fn can_move_to(&self, state: &State, dir: Dir) -> bool {
+        let pos = state.pos.move_into(&dir);
         let field = self.get(pos);
         match field {
-            '#' => false,
-            '.' | '@' => true,
-            x if x.is_uppercase() => {
-                let cont = state.keys.contains(&to_lowercase_western(&field));
-                // println!(
-                //     "cont: {:?} {:?} {}",
-                //     state.keys,
-                //     to_lowercase_western(&field),
-                //     cont,
-                // );
-                cont
-            }
-            x if x.is_lowercase() => true,
-            _ => panic!("unhandled char: {}", field),
+            '.' => true,
+            x if x == state.goal => true,
+            _ => false,
         }
     }
-    fn move_to(&self, state: &State, dir: Dir, num: usize) -> (State, usize) {
-        let pos = state.pos[num].move_into(&dir);
-        let field = self.get(pos);
-        let mut new_state = state.clone();
-
-        if field.is_lowercase() {
-            //keys.insert(field);
-            if new_state.keys.iter().find(|tk| **tk == field).is_none() {
-                new_state.keys.push(field);
-                new_state.keys.sort_by_key(|x| x.clone());
-            }
-        }
-        new_state.pos[num] = pos;
-        (new_state, 1)
+    fn move_to(&self, state: &State, dir: Dir) -> (State, usize) {
+        (
+            State {
+                pos: state.pos.move_into(&dir),
+                goal: state.goal,
+            },
+            1,
+        )
     }
 
     fn successors(&self, state: &State) -> Vec<(State, usize)> {
         let mut succ = Vec::new();
-        for i in 0..4 {
-            if self.can_move_to(state, Dir::Up, i) {
-                succ.push(self.move_to(state, Dir::Up, i))
-            }
-            if self.can_move_to(state, Dir::Down, i) {
-                succ.push(self.move_to(state, Dir::Down, i))
-            }
-            if self.can_move_to(state, Dir::Left, i) {
-                succ.push(self.move_to(state, Dir::Left, i))
-            }
-            if self.can_move_to(state, Dir::Right, i) {
-                succ.push(self.move_to(state, Dir::Right, i))
-            }
+        if self.can_move_to(state, Dir::Up) {
+            succ.push(self.move_to(state, Dir::Up))
+        }
+        if self.can_move_to(state, Dir::Down) {
+            succ.push(self.move_to(state, Dir::Down))
+        }
+        if self.can_move_to(state, Dir::Left) {
+            succ.push(self.move_to(state, Dir::Left))
+        }
+        if self.can_move_to(state, Dir::Right) {
+            succ.push(self.move_to(state, Dir::Right))
         }
         succ
+    }
+
+    fn optimize(&self) -> Graph2 {
+        let mut edges = HashMap::<char, Vec<(char, usize)>>::new();
+        let mut keys = HashSet::new();
+        for start in &self.nodes {
+            if start.1.is_lowercase() {
+                keys.insert(start.1);
+            }
+            for goal in &self.nodes {
+                if start == goal {
+                    continue;
+                }
+
+                if let Some(res) = dijkstra(
+                    &State {
+                        pos: start.0.clone(),
+                        goal: goal.1,
+                    },
+                    |state| self.successors(state),
+                    |state| state.pos == goal.0,
+                ) {
+                    println!("edge: {:?} {:?} {}", start, goal, res.1);
+                    if !edges.contains_key(&start.1) {
+                        edges.insert(start.1, vec![(goal.1, res.1)]);
+                    } else {
+                        edges.get_mut(&start.1).unwrap().push((goal.1, res.1));
+                    }
+                }
+            }
+        }
+        Graph2 {
+            edges,
+            num_keys: keys.len(),
+        }
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+struct State2 {
+    nodes: [char; 4],
+    keys: Vec<char>,
+}
+struct Graph2 {
+    edges: HashMap<char, Vec<(char, usize)>>,
+    num_keys: usize,
+}
+
+impl Graph2 {
+    fn successors(&self, state: &State2) -> Vec<(State2, usize)> {
+        let mut all_succ = Vec::<(State2, usize)>::new();
+        for i in 0..4 {
+            if let Some(successors) = self.edges.get(&state.nodes[i]) {
+                for (node, dist) in successors {
+                    if node.is_lowercase() {
+                        let mut new_state = state.clone();
+
+                        if new_state.keys.iter().find(|tk| **tk == *node).is_none() {
+                            new_state.keys.push(*node);
+                            new_state.keys.sort_by_key(|x| x.clone());
+                        }
+                        new_state.nodes[i] = *node;
+                        all_succ.push((new_state, *dist));
+                    } else if node.is_digit(10) {
+                        let mut new_state = state.clone();
+                        new_state.nodes[i] = *node;
+                        all_succ.push((new_state, *dist));
+                    } else if node.is_uppercase() {
+                        if state.keys.contains(&to_lowercase_western(&node)) {
+                            let mut new_state = state.clone();
+                            new_state.nodes[i] = *node;
+                            all_succ.push((new_state, *dist));
+                        }
+                    } else {
+                        panic!("bad node: {}", node);
+                    }
+                }
+            }
+        }
+        // println!("state: {:?}", state);
+        // println!("succ: {:?}", all_succ);
+        all_succ
     }
 }
 
@@ -118,36 +174,36 @@ fn main() {
 
     let data: Vec<Vec<char>> = data18().iter().map(|line| line.chars().collect()).collect();
     let graph = Graph::new(data);
+    let graph2 = graph.optimize();
 
-    let init_state = State {
-        pos: [
-            graph.starts[0],
-            graph.starts[1],
-            graph.starts[2],
-            graph.starts[3],
-        ],
+    let init_state = State2 {
+        nodes: ['0', '1', '2', '3'],
         keys: Vec::new(),
     };
-    let mut num_calls = 0;
-    // let res = astar(
+
     let res = dijkstra(
         &init_state,
-        |state| {
-            num_calls += 1;
-            // println!("state: {:?}", state);
-            let succ = graph.successors(state);
-            // println!(" - succ: {:?}", succ);
-            succ
-        },
-        // |state| 26 - state.keys.len(),
-        |state| state.keys.len() == graph.num_keys,
+        |state| graph2.successors(&state),
+        |state| state.keys.len() == graph2.num_keys,
     );
-    println!("calls {}", num_calls);
     println!("res: {:?}", res);
+    // let init_state = State {
+    //     pos: graph.start.clone(),
+    //     keys: Vec::new(),
+    // };
+    // let res = dijkstra(
+    //     &init_state,
+    //     |state| {
+    //         let succ = graph.successors(state);
+    //         succ
+    //     },
+    //     |state| state.keys.len() == graph.num_keys,
+    // );
+    // println!("res: {:?}", res);
 }
 
 fn data18() -> Vec<&'static str> {
-    if true {
+    if false {
         // vec![
         //     "###############",
         //     "#d.ABC.#.....a#",
@@ -170,9 +226,9 @@ fn data18() -> Vec<&'static str> {
             "#############",
             "#g#f.D#..h#l#",
             "#F###e#E###.#",
-            "#dCba@#@BcIJ#",
+            "#dCba0#1BcIJ#",
             "#############",
-            "#nK.L@#@G...#",
+            "#nK.L2#3....#",
             "#M###N#H###.#",
             "#o#m..#i#jk.#",
             "#############",
@@ -218,9 +274,9 @@ fn data18() -> Vec<&'static str> {
             "#.#########.#######.#.#######.#####.#.#.###.#######.#.###.#.#####.###.#.#.#####.#",
             "#.........#.#.#...#.#.......#.#...#...#.#...#.....#.#.#...#.#...#...#...#.....#.#",
             "#########.#.#.#.#.#.#####.#.#.#.#.#####.#.###.###.#.#.#.###.#.#.###.#########.#.#",
-            "#...........#...#.........#.#...#......@#@....#.....#.#.......#.....#...........#",
+            "#...........#...#.........#.#...#......0#1....#.....#.#.......#.....#...........#",
             "#################################################################################",
-            "#.........#.....#...#...........#......@#@....#.......#.......#.............#...#",
+            "#.........#.....#...#...........#......2#3....#.......#.......#.............#...#",
             "#.#.#######.#.###.#.###.#######.###.###.###.#.#.#####.#.#.###.#####.#####.#.#.#.#",
             "#.#m#z......#.....#..o#.....#.......#...#...#...#.....#.#...#.#...#...#...#.#.#.#",
             "#.#.#.###############.#####.#########.###.#########.#######.#.#.#.#.###.###.#.#.#",
