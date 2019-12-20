@@ -30,7 +30,7 @@ impl PartialOrd for Polar {
         }
     }
 }
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Dir {
     Up,
     Down,
