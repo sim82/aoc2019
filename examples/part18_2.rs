@@ -180,12 +180,16 @@ fn main() {
         nodes: ['0', '1', '2', '3'],
         keys: Vec::new(),
     };
-
+    let mut num_steps = 0;
     let res = dijkstra(
         &init_state,
-        |state| graph2.successors(&state),
+        |state| {
+            num_steps += 1;
+            graph2.successors(&state)
+        },
         |state| state.keys.len() == graph2.num_keys,
     );
+    println!("num_steps: {}", num_steps);
     println!("res: {:?}", res);
     // let init_state = State {
     //     pos: graph.start.clone(),

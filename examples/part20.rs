@@ -1,60 +1,42 @@
+use aoc2019::graph::*;
 use aoc2019::monitoring::*;
 use pathfinding::prelude::dijkstra;
 use std::collections::HashMap;
 use std::str::FromStr;
 
-struct CharMap2d {
-    data: Vec<Vec<char>>,
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+enum Side {
+    Inner,
+    Outer,
 }
 
-impl CharMap2d {
-    fn new(data: &Vec<&'static str>) -> Self {
-        let data = data.iter().map(|line| line.chars().collect()).collect();
-        CharMap2d { data }
-    }
-
-    fn get_point(&self, p: &Point) -> char {
-        let x = p.x as usize;
-        let y = p.y as usize;
-        if y >= self.data.len() || x >= self.data[y].len() {
-            panic!("out of bounds: {} {}", x, y);
+impl Side {
+    fn get_other(&self) -> Side {
+        match self {
+            Inner => Side::Outer,
+            Outer => Side::Inner,
         }
-        self.data[y][x]
     }
-
-    fn get_neighbors<'a, P: 'a>(
-        &'a self,
-        p: &'a Point,
-        mut predicate: P,
-    ) -> impl Iterator<Item = (Dir, char)> + 'a
-    //Vec<(Dir, char)>
-    where
-        P: FnMut(&char) -> bool,
-    {
-        const DIRS: [Dir; 4] = [Dir::Up, Dir::Right, Dir::Down, Dir::Left];
-        DIRS.iter().filter_map(move |dir| {
-            let neighbor = p.move_into(dir);
-            let nc = self.get_point(&neighbor);
-            if predicate(&nc) {
-                Some((dir.clone(), nc))
-            } else {
-                None
-            }
-        })
-        // .collect()
-    }
-
-    fn get_x_range(&self, y: i32) -> std::ops::Range<i32> {
-        0..self.data[y as usize].len() as i32
-    }
-    fn get_y_range(&self) -> std::ops::Range<i32> {
-        0..self.data.len() as i32
+    fn from_point(cm: &CharMap2d, p: &Point) -> Self {
+        let y_range = cm.get_y_range();
+        let x_range = cm.get_x_range(p.y);
+        // println!("{:?} {:?}", y_range, x_range);
+        if p.y == y_range.start + 2
+            || p.y == y_range.end - 3
+            || p.x == x_range.start + 2
+            || p.x == x_range.end - 3
+        {
+            Side::Outer
+        } else {
+            Side::Inner
+        }
     }
 }
-
+#[derive(Debug, Clone)]
 struct Node {
     name: String,
     nearest: Point,
+    side: Side,
 }
 
 fn find_nodes(cm: &CharMap2d) -> Vec<Node> {
@@ -74,21 +56,25 @@ fn find_nodes(cm: &CharMap2d) -> Vec<Node> {
                     Dir::Up | Dir::Left => format!("{}{}", c2, c1),
                     Dir::Down | Dir::Right => format!("{}{}", c1, c2),
                 };
-                println!("node: {} {:?}", name, p);
-                nodes.push(Node { name, nearest: p })
+                nodes.push(Node {
+                    name,
+                    nearest: p,
+                    side: Side::from_point(cm, &p),
+                });
+                println!("node: {:?}", nodes.last().unwrap());
             }
         }
     }
 
     nodes
 }
-fn build_node_graph(cm: &CharMap2d, nodes: &Vec<Node>) -> Vec<(String, String, usize)> {
+fn build_node_graph(cm: &CharMap2d, nodes: &Vec<Node>) -> Vec<(Node, Node, usize)> {
     let point_to_node: HashMap<Point, String> = nodes
         .iter()
         .map(|node| (node.nearest, node.name.clone()))
         .collect();
 
-    let mut adj = Vec::<(String, String, usize)>::new();
+    let mut adj = Vec::<(Node, Node, usize)>::new();
 
     for n1 in nodes {
         for n2 in nodes {
@@ -105,86 +91,204 @@ fn build_node_graph(cm: &CharMap2d, nodes: &Vec<Node>) -> Vec<(String, String, u
                 |s| *s == n2.nearest,
             ) {
                 println!("path: {} -> {}: {}", n1.name, n2.name, path.1 + 1);
-                adj.push((n1.name.clone(), n2.name.clone(), path.1 + 1));
+                adj.push((n1.clone(), n2.clone(), path.1 + 1));
             }
         }
     }
     adj
 }
 
+#[derive(Eq, PartialEq, Hash, Clone, Debug)]
+struct State {
+    name: String,
+    side: Side,
+    level: usize,
+}
+
 fn main() {
+    // for (i, line) in data20().iter().enumerate() {
+    //     println!("{} {}", i, line);
+    // }
+
     let cm = CharMap2d::new(&data20());
     let nodes = find_nodes(&cm);
     let adj = build_node_graph(&cm, &nodes);
-
-    let start = String::from_str(&"AA").unwrap();
-    let res = dijkstra(
-        &start,
-        |s| {
-            // adj.iter()
-            //     .filter_map(|a| {
-            //         if a.0 == *s {
-            //             Some((a.1.clone() as String, a.2 as usize))
-            //         } else {
-            //             None
-            //         }
-            //     })
-            //     .collect()
-            let mut succ = Vec::new();
-            for (n1, n2, d) in &adj {
-                if n1 == s {
-                    succ.push((n2.clone(), *d));
+    {
+        let start = String::from_str(&"AA").unwrap();
+        let res = dijkstra(
+            &start,
+            |s| {
+                // adj.iter()
+                //     .filter_map(|a| {
+                //         if a.0 == *s {
+                //             Some((a.1.clone() as String, a.2 as usize))
+                //         } else {
+                //             None
+                //         }
+                //     })
+                //     .collect()
+                let mut succ = Vec::new();
+                for (n1, n2, d) in &adj {
+                    if n1.name == *s {
+                        succ.push((n2.name.clone(), *d));
+                    }
                 }
-            }
 
-            succ
-        },
-        |s| s == "ZZ",
-    );
+                succ
+            },
+            |s| s == "ZZ",
+        );
 
-    println!("res: {:?}", res);
+        println!("res: {:?}", res);
+    }
+    {
+        let start = State {
+            name: "AA".into(),
+            side: Side::Outer,
+            level: 0,
+        };
+        let goal = State {
+            name: "ZZ".into(),
+            side: Side::Outer,
+            level: 0,
+        };
+
+        let mut num_steps = 0;
+        let res = dijkstra(
+            &start,
+            |s| {
+                // println!("state: {:?}", s);
+                let mut succ = Vec::new();
+                for (n1, n2, d) in &adj {
+                    if n1.name == *s.name && n1.side == s.side {
+                        if s.level == 0 && n2.side == Side::Outer && n2.name != "ZZ" {
+                            continue;
+                        }
+                        succ.push((
+                            State {
+                                name: n2.name.clone(),
+                                side: n2.side.clone(),
+                                level: s.level,
+                            },
+                            *d,
+                        ));
+                    }
+                }
+                if s.name != "AA" && s.name != "ZZ" {
+                    // println!("state {:?}", s);
+                    // let portal = s.clone();
+                    match s.side {
+                        Side::Inner => succ.push((
+                            State {
+                                name: s.name.clone(),
+                                side: Side::Outer,
+                                level: s.level + 1,
+                            },
+                            0,
+                        )),
+                        Side::Outer => {
+                            assert!(s.level != 0);
+                            succ.push((
+                                State {
+                                    name: s.name.clone(),
+                                    side: Side::Inner,
+                                    level: s.level - 1,
+                                },
+                                0,
+                            ))
+                        }
+                    }
+                }
+                // println!("succ: {:?}", succ);
+                num_steps += succ.len();
+                succ
+            },
+            |s| *s == goal,
+        );
+        println!("steps: {}", num_steps);
+        println!("res: {:?}", res);
+    }
 }
 
 fn data20() -> Vec<&'static str> {
-    if false {
+    if !true {
+        // vec![
+        //     "                   A               ",
+        //     "                   A               ",
+        //     "  #################.#############  ",
+        //     "  #.#...#...................#.#.#  ",
+        //     "  #.#.#.###.###.###.#########.#.#  ",
+        //     "  #.#.#.......#...#.....#.#.#...#  ",
+        //     "  #.#########.###.#####.#.#.###.#  ",
+        //     "  #.............#.#.....#.......#  ",
+        //     "  ###.###########.###.#####.#.#.#  ",
+        //     "  #.....#        A   C    #.#.#.#  ",
+        //     "  #######        S   P    #####.#  ",
+        //     "  #.#...#                 #......VT",
+        //     "  #.#.#.#                 #.#####  ",
+        //     "  #...#.#               YN....#.#  ",
+        //     "  #.###.#                 #####.#  ",
+        //     "DI....#.#                 #.....#  ",
+        //     "  #####.#                 #.###.#  ",
+        //     "ZZ......#               QG....#..AS",
+        //     "  ###.###                 #######  ",
+        //     "JO..#.#.#                 #.....#  ",
+        //     "  #.#.#.#                 ###.#.#  ",
+        //     "  #...#..DI             BU....#..LF",
+        //     "  #####.#                 #.#####  ",
+        //     "YN......#               VT..#....QG",
+        //     "  #.###.#                 #.###.#  ",
+        //     "  #.#...#                 #.....#  ",
+        //     "  ###.###    J L     J    #.#.###  ",
+        //     "  #.....#    O F     P    #.#...#  ",
+        //     "  #.###.#####.#.#####.#####.###.#  ",
+        //     "  #...#.#.#...#.....#.....#.#...#  ",
+        //     "  #.#####.###.###.#.#.#########.#  ",
+        //     "  #...#.#.....#...#.#.#.#.....#.#  ",
+        //     "  #.###.#####.###.###.#.#.#######  ",
+        //     "  #.#.........#...#.............#  ",
+        //     "  #########.###.###.#############  ",
+        //     "           B   J   C               ",
+        //     "           U   P   P               ",
+        // ]
         vec![
-            "                   A               ",
-            "                   A               ",
-            "  #################.#############  ",
-            "  #.#...#...................#.#.#  ",
-            "  #.#.#.###.###.###.#########.#.#  ",
-            "  #.#.#.......#...#.....#.#.#...#  ",
-            "  #.#########.###.#####.#.#.###.#  ",
-            "  #.............#.#.....#.......#  ",
-            "  ###.###########.###.#####.#.#.#  ",
-            "  #.....#        A   C    #.#.#.#  ",
-            "  #######        S   P    #####.#  ",
-            "  #.#...#                 #......VT",
-            "  #.#.#.#                 #.#####  ",
-            "  #...#.#               YN....#.#  ",
-            "  #.###.#                 #####.#  ",
-            "DI....#.#                 #.....#  ",
-            "  #####.#                 #.###.#  ",
-            "ZZ......#               QG....#..AS",
-            "  ###.###                 #######  ",
-            "JO..#.#.#                 #.....#  ",
-            "  #.#.#.#                 ###.#.#  ",
-            "  #...#..DI             BU....#..LF",
-            "  #####.#                 #.#####  ",
-            "YN......#               VT..#....QG",
-            "  #.###.#                 #.###.#  ",
-            "  #.#...#                 #.....#  ",
-            "  ###.###    J L     J    #.#.###  ",
-            "  #.....#    O F     P    #.#...#  ",
-            "  #.###.#####.#.#####.#####.###.#  ",
-            "  #...#.#.#...#.....#.....#.#...#  ",
-            "  #.#####.###.###.#.#.#########.#  ",
-            "  #...#.#.....#...#.#.#.#.....#.#  ",
-            "  #.###.#####.###.###.#.#.#######  ",
-            "  #.#.........#...#.............#  ",
-            "  #########.###.###.#############  ",
-            "           B   J   C               ",
-            "           U   P   P               ",
+            "             Z L X W       C                 ",
+            "             Z P Q B       K                 ",
+            "  ###########.#.#.#.#######.###############  ",
+            "  #...#.......#.#.......#.#.......#.#.#...#  ",
+            "  ###.#.#.#.#.#.#.#.###.#.#.#######.#.#.###  ",
+            "  #.#...#.#.#...#.#.#...#...#...#.#.......#  ",
+            "  #.###.#######.###.###.#.###.###.#.#######  ",
+            "  #...#.......#.#...#...#.............#...#  ",
+            "  #.#########.#######.#.#######.#######.###  ",
+            "  #...#.#    F       R I       Z    #.#.#.#  ",
+            "  #.###.#    D       E C       H    #.#.#.#  ",
+            "  #.#...#                           #...#.#  ",
+            "  #.###.#                           #.###.#  ",
+            "  #.#....OA                       WB..#.#..ZH",
+            "  #.###.#                           #.#.#.#  ",
+            "CJ......#                           #.....#  ",
+            "  #######                           #######  ",
+            "  #.#....CK                         #......IC",
+            "  #.###.#                           #.###.#  ",
+            "  #.....#                           #...#.#  ",
+            "  ###.###                           #.#.#.#  ",
+            "XF....#.#                         RF..#.#.#  ",
+            "  #####.#                           #######  ",
+            "  #......CJ                       NM..#...#  ",
+            "  ###.#.#                           #.###.#  ",
+            "RE....#.#                           #......RF",
+            "  ###.###        X   X       L      #.#.#.#  ",
+            "  #.....#        F   Q       P      #.#.#.#  ",
+            "  ###.###########.###.#######.#########.###  ",
+            "  #.....#...#.....#.......#...#.....#.#...#  ",
+            "  #####.#.###.#######.#######.###.###.#.#.#  ",
+            "  #.......#.......#.#.#.#.#...#...#...#.#.#  ",
+            "  #####.###.#####.#.#.#.#.###.###.#.###.###  ",
+            "  #.......#.....#.#...#...............#...#  ",
+            "  #############.#.#.###.###################  ",
+            "               A O F   N                     ",
+            "               A A D   M                     ",
         ]
     } else {
         vec![
@@ -309,8 +413,6 @@ fn data20() -> Vec<&'static str> {
 "  #########################################.#.###########.#######.###.###.#####.###.#########################################  ",
 "                                           I I           J       W   K   A     U   F                                           ",
 "                                           F C           J       P   N   A     S   X                                           ",
-
-
         ]
     }
 }
