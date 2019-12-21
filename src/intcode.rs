@@ -139,6 +139,38 @@ impl Io2 for () {
     }
 }
 
+pub struct IoAscii<'a> {
+    input: &'a mut dyn std::io::BufRead,
+    output: &'a mut dyn std::io::Write,
+}
+impl<'a> IoAscii<'a> {
+    pub fn default(
+        input: &'a mut dyn std::io::BufRead,
+        output: &'a mut dyn std::io::Write,
+    ) -> Self {
+        IoAscii {
+            input: input,
+            output: output,
+        }
+    }
+}
+impl<'a> Io2 for IoAscii<'a> {
+    fn write(&mut self, v: i64) {
+        // writeln!(self.output, "{}", v).unwrap();
+        if v > 127 {
+            writeln!(self.output, "non ascii: {}", v).unwrap();
+        } else {
+            let buf = [v as u8; 1];
+            self.output.write(&buf).unwrap();
+        }
+    }
+    fn read(&mut self) -> i64 {
+        let mut buf = [0 as u8; 1];
+        self.input.read_exact(&mut buf).unwrap();
+        buf[0] as i64
+    }
+}
+
 pub struct Process {
     pub context: Context,
     pub input: String,

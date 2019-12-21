@@ -128,14 +128,37 @@ impl Io2 for Camera {
     }
 }
 
-fn main() {
-    let mut context = Context::new(code17());
-    let mut camera = Camera::new();
+// impl Io2 for Iterator<Item = char> {
+//     fn read(&mut self) -> i64 {
+//         self.next().unwrap() as u16 as i64
+//     }
+//     fn write(&mut self, v: i64) {
+//         println!("out: {}", v);
+//     }
+// }
 
-    (&mut context, &mut camera as &mut Io2).run();
-    let calibration = camera.crossing.iter().map(|p| p.x * p.y).sum::<i32>();
-    println!("calibration: {}", calibration);
-    camera.trace_segments();
+fn main() {
+    {
+        let mut context = Context::new(code17());
+        let mut camera = Camera::new();
+
+        (&mut context, &mut camera as &mut Io2).run();
+        let calibration = camera.crossing.iter().map(|p| p.x * p.y).sum::<i32>();
+        println!("calibration: {}", calibration);
+        camera.trace_segments();
+    }
+    {
+        println!("play plan");
+        let mut code = code17();
+        code[0] = 2;
+        let mut context = Context::new(code);
+        let stdin = std::io::stdin();
+        let mut stdin = stdin.lock();
+        let stdout = std::io::stdout();
+        let mut stdout = stdout.lock();
+        let mut io = IoAscii::default(&mut stdin, &mut stdout);
+        (&mut context, &mut io as &mut Io2).run();
+    }
 }
 
 fn code17() -> Vec<i64> {
