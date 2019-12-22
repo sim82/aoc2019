@@ -189,7 +189,6 @@ impl Interpreter for (&mut Context, &mut dyn Io2) {
             steps -= 1;
             let opcode = context.data[context.ip] % 100;
             let mut modes = SmallVec::<[i64; 4]>::new(); // vec![0; 0];
-            modes.reserve(3);
             let mut modenum = context.data[context.ip] / 100;
             // println!("opcode {}", opcode);
 
