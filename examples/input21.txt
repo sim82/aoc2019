@@ -1,0 +1,9 @@
+NOT A J
+NOT B T
+OR T J
+NOT C T
+OR T J
+AND D J
+WALK
+
+jump if I can land on D and if there is a hole in A or B or C

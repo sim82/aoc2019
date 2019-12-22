@@ -1,0 +1,20 @@
+NOT A J
+NOT B T
+OR T J
+NOT C T
+OR T J
+AND D J
+OR J T
+AND H T
+OR E T
+AND T J
+RUN
+
+jump if (I can land on D and if there is a hole in A or B or C) and (I can continue walking on E or directly jump on to H) 
+
+
+
+@  A  B  C  D  E  F  G  H
+   x  x  x  #  #  ?  ?  ?              
+or
+            #  x  x  x  #
