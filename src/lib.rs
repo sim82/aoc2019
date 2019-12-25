@@ -6,6 +6,10 @@ mod test;
 
 pub mod util {
     use std::collections::HashSet;
+    use std::sync::mpsc::{channel, Receiver};
+    use termion::event::Key;
+    use termion::input::TermRead;
+
     pub fn get_prime_factors(mut v: i64) -> Vec<i64> {
         let mut primes = Vec::new();
         let mut factors = HashSet::new();
@@ -26,5 +30,18 @@ pub mod util {
         }
 
         factors.iter().cloned().collect()
+    }
+
+    pub fn input_keys() -> Receiver<Key> {
+        let stdin = std::io::stdin();
+        let (tx, rx) = channel();
+        std::thread::spawn(move || {
+            for k in stdin.keys() {
+                if tx.send(k.unwrap()).is_err() {
+                    break;
+                }
+            }
+        });
+        return rx;
     }
 }

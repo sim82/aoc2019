@@ -50,6 +50,28 @@ impl Dir {
     //     self.into()
     // }
 }
+
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub enum GeoDir {
+    North,
+    South,
+    West,
+    East,
+}
+
+impl std::str::FromStr for GeoDir {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "north" => Ok(GeoDir::North),
+            "south" => Ok(GeoDir::South),
+            "west" => Ok(GeoDir::West),
+            "east" => Ok(GeoDir::East),
+            _ => Err(()),
+        }
+    }
+}
+
 pub trait TurnDir {
     fn turn_right(&self) -> Self;
     fn turn_left(&self) -> Self;
@@ -70,6 +92,16 @@ impl TurnDir for Dir {
             Dir::Left => Dir::Down,
             Dir::Down => Dir::Right,
             Dir::Right => Dir::Up,
+        }
+    }
+}
+impl From<GeoDir> for Dir {
+    fn from(d: GeoDir) -> Dir {
+        match d {
+            GeoDir::North => Dir::Up,
+            GeoDir::South => Dir::Down,
+            GeoDir::West => Dir::Left,
+            GeoDir::East => Dir::Right,
         }
     }
 }
