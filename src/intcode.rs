@@ -278,3 +278,15 @@ impl Interpreter for (&mut Context, &mut dyn Io2) {
         return context.data[context.ip] == 99;
     }
 }
+
+pub fn read_prog(name: &str) -> Vec<i64> {
+    let data = std::fs::read_to_string(name).unwrap();
+
+    data.lines()
+        .flat_map(|line| {
+            line.trim()
+                .split_terminator(",")
+                .filter_map(|s| s.parse::<i64>().ok())
+        })
+        .collect()
+}

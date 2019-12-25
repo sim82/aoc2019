@@ -13,6 +13,7 @@ rand = "*"
 pathfinding = "2"
 ctrlc = "*"
 smallvec = "*"
+#futures = "0.3"
 
 [profile.release]
 debug = true
