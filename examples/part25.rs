@@ -28,7 +28,7 @@ use termion::raw::IntoRawMode;
 // );
 // named!(get_title<&str, &str>, delimited!(tag!("=="), escaped!(), tag!("==")));
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct Location {
     title: String,
     desc: String,
@@ -191,6 +191,8 @@ struct IoAdventure {
     last_movement: Option<GeoDir>,
     map: Map,
     log_file: File,
+    items: Vec<String>,
+    trying_combinations: bool,
 }
 
 impl IoAdventure {
@@ -205,6 +207,8 @@ impl IoAdventure {
             last_movement: None,
             map: Map::new(),
             log_file: File::create("/tmp/log.txt").unwrap(),
+            items: Vec::new(),
+            trying_combinations: false,
         }
     }
     fn output_command(&mut self, cmd: &str) {
@@ -235,6 +239,55 @@ impl Io2 for IoAdventure {
                     self.last_movement = Some(GeoDir::East);
                     self.output_command("east")
                 }
+
+                Ok(Key::F(12)) => panic!("exit!"),
+                Ok(Key::Char('t')) => match &self.current_location {
+                    Some(location) => {
+                        if !location.items.is_empty() {
+                            let item = location.items.iter().last().unwrap();
+                            self.items.push(item.clone());
+                            self.output_command(&format!("take {}", *item));
+                        }
+                    }
+                    _ => (),
+                },
+                Ok(Key::Char(c)) if c.is_digit(10) => {
+                    match &self.current_location {
+                        Some(location) => {
+                            let num = (c.to_digit(10).unwrap() - 1) as usize;
+                            if num < self.items.len() {
+                                self.output_command(&format!("drop {}", self.items[num]));
+                                self.items.remove(num);
+                            }
+                        }
+                        _ => (),
+                    };
+                    self.last_movement = None
+                }
+                Ok(Key::Char('p')) => {
+                    let items: Vec<_> = self.items.iter().cloned().collect();
+
+                    let mut cur_items = items.clone();
+
+                    for i in 1..2u32.pow(items.len() as u32) {
+                        for item in cur_items.iter() {
+                            self.output_command(&format!("drop {}", item));
+                        }
+                        for (j, item) in items.iter().enumerate() {
+                            if (i & (0b1 << j)) != 0 {
+                                cur_items.push(item.clone());
+                                self.output_command(&format!("take {}", item));
+                            }
+                        }
+                        // self.log_file
+                        //     .write(&format!("combination: {:?}", cur_items).into_bytes()[..]);
+
+                        self.output_command("north");
+                        // println!("combination: ")
+                    }
+                    // self.log_file.flush();
+                }
+
                 Ok(_) => self.last_movement = None,
                 Err(_) => panic!("recv error"),
             }
@@ -247,9 +300,16 @@ impl Io2 for IoAdventure {
         if self.input_buf.ends_with("Command?\n") {
             write!(self.log_file, "{}", self.input_buf);
             self.log_file.flush().unwrap();
-            // println!("buffer: {}", self.input_buf);
+            //println!("buffer: {}", self.input_buf);
             let new_location = self.input_buf.parse::<Location>().ok();
-            if new_location.is_some() && self.last_movement.is_some() {
+            let did_move = match (&new_location, &self.current_location) {
+                (Some(new_location), Some(old_location)) => {
+                    new_location.title != old_location.title
+                }
+                _ => true,
+            };
+
+            if did_move && new_location.is_some() && self.last_movement.is_some() {
                 self.current_coord = self
                     .current_coord
                     .move_into(&(self.last_movement.as_ref().unwrap().clone().into()));
@@ -259,6 +319,8 @@ impl Io2 for IoAdventure {
                     &self.current_coord,
                     &self.current_location.as_ref().unwrap(),
                 );
+            } else if self.trying_combinations && did_move {
+                println!("correct combination: {:?}", self.items);
             } else {
                 // println!("nothing new: {}", self.input_buf);
             }
@@ -267,6 +329,13 @@ impl Io2 for IoAdventure {
             write!(self.stdout, "{}", termion::clear::All).unwrap();
             let map_size = self.map.draw(&self.current_coord, &mut self.stdout);
             let map_size = 40;
+            write!(
+                self.stdout,
+                "{}{:?}",
+                termion::cursor::Goto(1, map_size as u16 + 2),
+                self.items
+            )
+            .unwrap();
             write!(
                 self.stdout,
                 "{}{:?}",
